@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>音声入力ブックマーク（試作）</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --tx:#1d2330; --mut:#6b7280; --ac:#ff7a00; --bd:#e3e6ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font:15px/1.7 "Segoe UI","Yu Gothic UI",sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 80px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:28px 0 8px; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:10px; padding:16px 18px; }
+  .bm { display:inline-block; padding:10px 18px; background:var(--ac); color:#fff; border-radius:8px; font-weight:700; text-decoration:none; cursor:grab; }
+  ol { padding-left:20px; margin:6px 0; } li { margin:3px 0; }
+  small, .mut { color:var(--mut); }
+  table { width:100%; border-collapse:collapse; background:var(--card); }
+  th, td { border:1px solid var(--bd); padding:6px 8px; text-align:left; }
+  th { background:#eef0f3; font-weight:600; width:40%; }
+  td input { width:100%; font:inherit; padding:4px 6px; border:1px solid var(--bd); border-radius:4px; }
+  code { background:#eef0f3; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>音声入力ブックマーク（試作）</h1>
+  <p class="mut">インストール不要。ブックマークをクリックすると、開いている帳票ページに音声入力パネルが表示されます。音声はPC内（ブラウザ内）で処理し、外部には送信しません。</p>
+
+  <h2>1. ブックマークを登録する</h2>
+  <div class="card">
+    <p>下のボタンを、ブラウザのブックマークバーへ<strong>ドラッグ＆ドロップ</strong>してください。<br>
+      <small>ブックマークバーが出ていない場合は Ctrl+Shift+B で表示できます。</small></p>
+    <p><a class="bm" id="bm" href="#">🎤 音声入力</a></p>
+  </div>
+
+  <h2>2. 使い方</h2>
+  <div class="card">
+    <ol>
+      <li>帳票のページを開き、ブックマークバーの「🎤 音声入力」をクリック → 右下にパネルが出ます</li>
+      <li>「モデル読み込み」（初回のみダウンロードあり。base 約77MB）</li>
+      <li>「開始」→ マイクの許可を求められたら「許可」</li>
+      <li>最初の欄をクリックして話す</li>
+    </ol>
+    <p>話し方: 「正常／マル／よし」→○、「異常／バツ／ダメ」→×、数字（12.5・十二点五・マイナス3）、「戻る」「スキップ」「5番」。<br>
+      欄をクリックすれば、そこから入力し直せます。ページを開き直したら、もう一度ブックマークをクリックしてください。</p>
+  </div>
+
+  <h2>3. 練習用の帳票</h2>
+  <p class="mut">このページでもそのまま試せます。ブックマークをクリックし、下の欄で話してみてください。</p>
+  <table>
+    <tr><th>1. 外観に傷・変形がないか</th><td><input aria-label="1 外観"></td></tr>
+    <tr><th>2. 異音・異臭がないか</th><td><input aria-label="2 異音異臭"></td></tr>
+    <tr><th>3. 油圧（MPa）</th><td><input aria-label="3 油圧"></td></tr>
+    <tr><th>4. 温度（℃）</th><td><input aria-label="4 温度"></td></tr>
+    <tr><th>5. 安全カバーの取付状態</th><td><input aria-label="5 安全カバー"></td></tr>
+    <tr><th>6. 電流値（A）</th><td><input aria-label="6 電流値"></td></tr>
+  </table>
+</main>
+<script>
+  const base = new URL(".", location.href).href;
+  const code = "(()=>{if(window.__xcgVB){window.__xcgVB.toggle();return}var s=document.createElement('script');" +
+    "s.type='module';s.crossOrigin='anonymous';s.src='" + base + "loader.js?v='+Date.now();document.head.appendChild(s)})()";
+  const a = document.getElementById("bm");
+  a.href = "javascript:" + code;
+  a.addEventListener("click", (e) => { e.preventDefault(); eval(code); }); // このページ上で押した場合はそのまま起動
+</script>
+</body>
+</html>
