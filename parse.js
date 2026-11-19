@@ -3,9 +3,10 @@
 export const KEYWORDS = [ // 先に書いたものから順に判定（「異常なし」を×より先に判定）
   ["異常なし", "○"], ["異常無し", "○"], ["以上なし", "○"], ["以上無し", "○"], ["いじょうなし", "○"], ["問題なし", "○"],
   ["異常", "×"], ["いじょう", "×"], ["以上", "×"], ["バツ", "×"], ["ばつ", "×"], ["NG", "×"], ["ダメ", "×"], ["だめ", "×"],
+  ["○", "○"], ["〇", "○"], ["◯", "○"], ["×", "×"], ["✕", "×"], ["✖", "×"],
   ["正常", "○"], ["せいじょう", "○"], ["マル", "○"], ["まる", "○"], ["丸", "○"], ["OK", "○"], ["よし", "○"], ["良し", "○"],
 ];
-const COMMANDS = [["戻る", "back"], ["もどる", "back"], ["スキップ", "skip"], ["飛ばす", "skip"], ["とばす", "skip"]];
+const COMMANDS = [["戻る", "back"], ["戻っ", "back"], ["もどる", "back"], ["スキップ", "skip"], ["飛ばす", "skip"], ["とばす", "skip"]];
 
 const KDIG = { "〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
 const KUNIT = { "十": 10, "百": 100, "千": 1000 };
@@ -38,32 +39,55 @@ function kanjiInt(t) {
   return total + sect + num;
 }
 
-export function parseNumber(text) {
-  let t = text.replace(/[０-９．－]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
-  t = t.replace(/[\s。、,円度個本回番!?！？]/g, "");
+const KANA2KANJI = [["じゅう", "十"], ["ひゃく", "百"], ["びゃく", "百"], ["ぴゃく", "百"], ["せん", "千"], ["ぜん", "千"],
+  ["ゼロ", "〇"], ["れい", "〇"], ["いち", "一"], ["さん", "三"], ["よん", "四"], ["ろく", "六"], ["なな", "七"], ["しち", "七"],
+  ["はち", "八"], ["きゅう", "九"], ["に", "二"], ["ご", "五"], ["く", "九"], ["し", "四"]];
+
+function parseCore(t) {
   let neg = false;
   for (const w of ["マイナス", "まいなす", "-", "−", "ー"]) {
     if (t.startsWith(w)) { neg = true; t = t.slice(w.length); break; }
   }
   t = t.replace(/てん|テン/g, "点").replace(/ゼロ|れい/g, "〇");
+  if (!t) return null;
   let val;
   const m = t.match(/^(\d+)(?:[.点](\d+))?$/);
   if (m) {
     val = m[1] + (m[2] ? "." + m[2] : "");
   } else {
+    t = t.replace(/\./g, "点");                     // 「十二．五」のような漢数字＋小数点にも対応
     const i = t.indexOf("点");
     const ip = i >= 0 ? t.slice(0, i) : t;
     let dp = i >= 0 ? t.slice(i + 1) : "";
     const n = ip ? kanjiInt(ip) : 0;
     if (n === null || (!ip && !dp)) return null;
     if (dp) {
-      for (const [k, v] of KANA) dp = dp.split(k).join(v);
-      dp = [...dp].map((c) => (c in KDIG ? String(KDIG[c]) : c)).join("");
-      if (!/^\d+$/.test(dp)) return null;
+      let d2 = dp;
+      for (const [k, v] of KANA) d2 = d2.split(k).join(v);
+      d2 = [...d2].map((c) => (c in KDIG ? String(KDIG[c]) : c)).join("");
+      if (!/^\d+$/.test(d2)) {
+        const k = kanjiInt(dp);                      // 「三．十四」→ 3.14
+        if (k === null) return null;
+        d2 = String(k);
+      }
+      dp = d2;
     }
     val = String(n) + (dp ? "." + dp : "");
   }
   return (neg ? "-" : "") + val;
+}
+
+export function parseNumber(text) {
+  let t = text.replace(/[０-９．－]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  t = t.replace(/[\s。、,円度個本回番!?！？]/g, "");
+  if (!t) return null;
+  let r = parseCore(t);
+  if (r === null) {                                  // ひらがな混じり（じゅう二点ご）は漢数字に直して再判定
+    let k = t;
+    for (const [a, b] of KANA2KANJI) k = k.split(a).join(b);
+    if (k !== t) r = parseCore(k);
+  }
+  return r;
 }
 
 export function jumpTarget(text) {
