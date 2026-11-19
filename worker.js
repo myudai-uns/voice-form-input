@@ -6,10 +6,21 @@ env.useBrowserCache = true;
 
 let asr = null;
 
+// 選べるモデル（大きいものは4bit量子化で容量を抑える）
+const MODELS = {
+  tiny: { id: "onnx-community/whisper-tiny" },
+  base: { id: "onnx-community/whisper-base" },
+  small: { id: "onnx-community/whisper-small" },
+  turbo: { id: "onnx-community/whisper-large-v3-turbo", big: true },        // 高精度・多言語
+  kotoba: { id: "onnx-community/kotoba-whisper-v2.2-ONNX", big: true },     // 日本語特化
+};
+
 async function load(model, device, threads) {
   env.backends.onnx.wasm.numThreads = threads;
-  const dtype = device === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8";
-  asr = await pipeline("automatic-speech-recognition", `onnx-community/whisper-${model}`, {
+  const m = MODELS[model] || MODELS.base;
+  const dtype = m.big ? { encoder_model: "q4", decoder_model_merged: "q4" }
+    : device === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8";
+  asr = await pipeline("automatic-speech-recognition", m.id, {
     device, dtype,
     progress_callback: (p) => {
       if (p.status === "progress") self.postMessage({ type: "progress", file: p.file, pct: Math.round(p.progress) });

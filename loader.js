@@ -55,7 +55,7 @@ function start() {
   <div class="b">
     <div class="row">
       <label>モデル</label>
-      <select id="model"><option value="tiny">tiny</option><option value="base">base</option><option value="small">small</option></select>
+      <select id="model"><option value="tiny">tiny（最速）</option><option value="base">base（標準 77MB）</option><option value="small">small（250MB）</option><option value="kotoba">kotoba 日本語特化（730MB）</option><option value="turbo">large-v3-turbo（760MB）</option></select>
       <label>処理</label>
       <select id="device"><option value="auto">自動</option><option value="webgpu">WebGPU</option><option value="wasm">CPU</option></select>
     </div>
@@ -71,6 +71,8 @@ function start() {
       <div class="row"><label>感度</label><input id="sens" type="range" min="2" max="60" style="flex:1"><span id="sv"></span></div>
       <div class="row"><label>○</label><input id="okc" type="text"><label>×</label><input id="ngc" type="text">
         <label><input id="dry" type="checkbox">入力しない(精度テスト)</label></div>
+      <div class="row"><label><input id="tts" type="checkbox">入力内容を読み上げ</label>
+        <select id="voice" style="flex:1;min-width:0"></select></div>
     </details>
     <div class="stats"><div><b id="sN">0</b>発話</div><div><b id="sV">0</b>入力</div><div><b id="sI">0</b>無視</div><div><b id="sM">-</b>平均ms</div></div>
     <div class="row"><button class="btn" id="copy">記録コピー</button><button class="btn" id="clr">クリア</button></div>
@@ -111,6 +113,38 @@ function start() {
   $("okc").value = store.get("okc", "○");
   $("ngc").value = store.get("ngc", "×");
   for (const k of ["model", "device", "sens", "okc", "ngc"]) $(k).addEventListener("change", () => store.set(k, $(k).value));
+  $("model").addEventListener("change", () => {
+    if (["kotoba", "turbo"].includes($("model").value)) log("大きいモデルは初回ダウンロード約730〜760MB。WebGPUのあるPC向けです");
+  });
+
+  // ---------- 読み上げ（PC内の日本語音声を使用） ----------
+  $("tts").checked = store.get("tts", "0") === "1";
+  $("tts").addEventListener("change", () => store.set("tts", $("tts").checked ? "1" : "0"));
+  function listVoices() {
+    const vs = (speechSynthesis.getVoices() || []).filter((v) => v.lang.startsWith("ja"));
+    const saved = store.get("voice", "");
+    $("voice").innerHTML = vs.map((v) => `<option value="${esc(v.name)}">${esc(v.name)}${v.localService ? "" : "（オンライン）"}</option>`).join("")
+      || '<option value="">日本語の音声がありません</option>';
+    const local = vs.find((v) => v.localService);
+    $("voice").value = vs.some((v) => v.name === saved) ? saved : (local ? local.name : (vs[0]?.name || ""));
+  }
+  listVoices();
+  speechSynthesis.addEventListener?.("voiceschanged", listVoices);
+  $("voice").addEventListener("change", () => { store.set("voice", $("voice").value); say("テストです"); });
+  let speaking = false;
+  function say(text) {
+    if (!$("tts").checked && text !== "テストです") return;
+    const u = new SpeechSynthesisUtterance(text);
+    const v = speechSynthesis.getVoices().find((x) => x.name === $("voice").value);
+    if (v) u.voice = v;
+    u.lang = "ja-JP"; u.rate = 1.3;
+    speaking = true;                                   // 読み上げ中はマイクの音を無視（自分の声を拾わない）
+    u.onend = u.onerror = () => setTimeout(() => { speaking = false; }, 250);
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+  const speakText = (a, ngc) => a.kind === "value"
+    ? (a.type === "mark" ? (a.value === ngc ? "バツ" : "マル") : a.value)
+    : ({ back: "戻ります", skip: "スキップ", jump: `${a.n}番` }[a.kind] || "");
   const threshold = () => Number($("sens").value) / 1000;
   const showSens = () => { $("sv").textContent = threshold().toFixed(3); $("th").style.left = Math.min(100, threshold() * 1000) + "%"; };
   $("sens").addEventListener("input", showSens); showSens();
@@ -272,7 +306,10 @@ function start() {
     else if ($("dry").checked) { result = a.kind === "value" ? a.value : a.kind + (a.n || ""); stats.v++; cls = "ok"; }
     else {
       const r = act(a);
-      if (r.ok) { stats.v++; cls = "ok"; result = r.msg; showField(r.info); beep(a.value === $("ngc").value ? 440 : 880); }
+      if (r.ok) {
+        stats.v++; cls = "ok"; result = r.msg; showField(r.info);
+        if ($("tts").checked) say(speakText(a, $("ngc").value)); else beep(a.value === $("ngc").value ? 440 : 880);
+      }
       else { cls = "err"; result = r.error; }
     }
     log(`[${ms}ms]「${esc(text)}」→ ${esc(result)}`, cls);
@@ -328,7 +365,7 @@ function start() {
       let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i];
       const rms = Math.sqrt(s / x.length);
       $("lv").style.width = Math.min(100, rms * 1000) + "%";
-      if (busy) { buf = []; sil = 0; return; }
+      if (busy || speaking) { buf = []; sil = 0; pre = []; return; }
       if (rms > threshold()) { if (!buf.length) buf.push(...pre); buf.push(x); sil = 0; }
       else if (buf.length) { buf.push(x); sil += BSEC; }
       else { pre.push(x); if (pre.length > PRE) pre.shift(); }
